@@ -17,6 +17,7 @@
 package org.springframework.http;
 
 import org.springframework.util.MultiValueMap;
+import org.springframework.util.ObjectUtils;
 
 /**
  * Represents an HTTP request or response entity, consisting of headers and body.
@@ -55,7 +56,7 @@ public class HttpEntity<T> {
 	/**
 	 * The empty {@code HttpEntity}, with no body or headers.
 	 */
-	public static final HttpEntity<Object> EMPTY = new HttpEntity<Object>();
+	public static final HttpEntity EMPTY = new HttpEntity();
 
 
 	private final HttpHeaders headers;
@@ -123,18 +124,37 @@ public class HttpEntity<T> {
 	}
 
 	@Override
+	public boolean equals(Object other) {
+		if (this == other) {
+			return true;
+		}
+		if (!(other instanceof HttpEntity)) {
+			return false;
+		}
+		HttpEntity<?> otherEntity = (HttpEntity<?>) other;
+		return (ObjectUtils.nullSafeEquals(this.headers, otherEntity.headers) &&
+				ObjectUtils.nullSafeEquals(this.body, otherEntity.body));
+	}
+
+	@Override
+	public int hashCode() {
+		return (ObjectUtils.nullSafeHashCode(this.headers) * 29 + ObjectUtils.nullSafeHashCode(this.body));
+	}
+
+	@Override
 	public String toString() {
 		StringBuilder builder = new StringBuilder("<");
-		if (body != null) {
-			builder.append(body);
-			if (headers != null) {
+		if (this.body != null) {
+			builder.append(this.body);
+			if (this.headers != null) {
 				builder.append(',');
 			}
 		}
-		if (headers != null) {
-			builder.append(headers);
+		if (this.headers != null) {
+			builder.append(this.headers);
 		}
 		builder.append('>');
 		return builder.toString();
 	}
+
 }

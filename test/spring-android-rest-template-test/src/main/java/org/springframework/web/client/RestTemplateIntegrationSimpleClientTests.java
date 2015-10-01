@@ -22,10 +22,10 @@ import org.springframework.http.client.SimpleClientHttpRequestFactory;
  * @author Roy Clarkson
  */
 public class RestTemplateIntegrationSimpleClientTests extends AbstractRestTemplateIntegrationTests {
-	
+
 	@Override
 	protected RestTemplate getRestTemplate() {
-		return new RestTemplate(true, new SimpleClientHttpRequestFactory());
+		return new RestTemplate(new SimpleClientHttpRequestFactory());
 	}
 
 }

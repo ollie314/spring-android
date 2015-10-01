@@ -33,17 +33,20 @@ public class BufferingHttpComponentsClientHttpRequestFactoryTests extends Buffer
 	protected ClientHttpRequestFactory createRequestFactory() {
 		return new BufferingClientHttpRequestFactory(new HttpComponentsClientHttpRequestFactory());
 	}
-	
+
 	@MediumTest
-	public void testGetAcceptEncodingNone() throws Exception {
+	@Override
+	public void testGetAcceptEncodingGzip() throws Exception {
 		ClientHttpRequest request = factory.createRequest(new URI(baseUrl + "/gzip"), HttpMethod.GET);
 		assertEquals("Invalid HTTP method", HttpMethod.GET, request.getMethod());
+		request.getHeaders().add("Accept-Encoding", "gzip");
 		ClientHttpResponse response = request.execute();
 		try {
 			assertNotNull(response.getStatusText());
 			assertEquals("Invalid status code", HttpStatus.OK, response.getStatusCode());
+			// HttpClient seamlessly handles gzip encoded responses
 			assertFalse("Header found", response.getHeaders().containsKey("Content-Encoding"));
-			byte[] body = "gzip gzip gzip gzip gzip gzip gzip gzip gzip gzip gzip gzip gzip gzip gzip gzip gzip gzip gzip gzip gzip gzip gzip "
+			final byte[] body = "gzip gzip gzip gzip gzip gzip gzip gzip gzip gzip gzip gzip gzip gzip gzip gzip gzip gzip gzip gzip gzip gzip gzip "
 					.getBytes("UTF-8");
 			byte[] result = FileCopyUtils.copyToByteArray(response.getBody());
 			assertTrue("Invalid body", Arrays.equals(body, result));
@@ -51,10 +54,12 @@ public class BufferingHttpComponentsClientHttpRequestFactoryTests extends Buffer
 			GZIPOutputStream gzipOutputStream = new GZIPOutputStream(byteArrayOutputStream);
 			FileCopyUtils.copy(body, gzipOutputStream);
 			long contentLength = response.getHeaders().getContentLength();
-			assertEquals("Invalid content-length", body.length, contentLength);
+			// the content-length header is not being set in a gzip'd response
+			assertEquals("Invalid content-length", -1, contentLength);
 		} finally {
 			response.close();
 		}
 	}
+
 
 }

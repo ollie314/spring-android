@@ -16,7 +16,6 @@
 
 package org.springframework.http.client;
 
-
 public class SimpleStreamingHttpRequestFactoryTests extends SimpleAbstractHttpRequestFactoryTests {
 
 	@Override

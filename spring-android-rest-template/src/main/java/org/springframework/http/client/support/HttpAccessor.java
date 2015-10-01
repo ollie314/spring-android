@@ -23,18 +23,20 @@ import org.springframework.http.HttpMethod;
 import org.springframework.http.client.ClientHttpRequest;
 import org.springframework.http.client.ClientHttpRequestFactory;
 import org.springframework.http.client.HttpComponentsClientHttpRequestFactory;
+import org.springframework.http.client.OkHttpClientHttpRequestFactory;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.util.Assert;
+import org.springframework.util.ClassUtils;
 
 import android.os.Build;
 import android.util.Log;
 
 /**
- * Base class for {@link org.springframework.web.client.RestTemplate} and other HTTP accessing gateway helpers, defining
- * common properties such as the {@link ClientHttpRequestFactory} to operate on.
- * 
- * <p>
- * Not intended to be used directly. See {@link org.springframework.web.client.RestTemplate}.
+ * Base class for {@link org.springframework.web.client.RestTemplate}
+ * and other HTTP accessing gateway helpers, defining common properties
+ * such as the {@link ClientHttpRequestFactory} to operate on.
+ *
+ * <p>Not intended to be used directly. See {@link org.springframework.web.client.RestTemplate}.
  * 
  * @author Arjen Poutsma
  * @author Roy Clarkson
@@ -45,14 +47,28 @@ public abstract class HttpAccessor {
 
 	private static final String TAG = HttpAccessor.class.getSimpleName();
 
+	private static final boolean httpClient43Present =
+			ClassUtils.isPresent("org.apache.http.impl.client.CloseableHttpClient", HttpAccessor.class.getClassLoader());
+
+	private static final boolean okHttpPresent =
+			ClassUtils.isPresent("com.squareup.okhttp.OkHttpClient", HttpAccessor.class.getClassLoader());
+
 	private ClientHttpRequestFactory requestFactory;
 
 
+	@SuppressWarnings("deprecation")
 	protected HttpAccessor() {
-		if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.GINGERBREAD) {
-			this.requestFactory = new SimpleClientHttpRequestFactory();
-		} else {
+		if (httpClient43Present) {
 			this.requestFactory = new HttpComponentsClientHttpRequestFactory();
+		}
+		else if (okHttpPresent) {
+			this.requestFactory = new OkHttpClientHttpRequestFactory();
+		}
+		else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.GINGERBREAD) {
+			this.requestFactory = new SimpleClientHttpRequestFactory();
+		}
+		else {
+			this.requestFactory = new org.springframework.http.client.HttpComponentsAndroidClientHttpRequestFactory();
 		}
 	}
 

@@ -52,7 +52,6 @@ import org.springframework.util.MultiValueMap;
 
 import android.test.AndroidTestCase;
 import android.test.suitebuilder.annotation.MediumTest;
-import android.util.Log;
 
 /** 
  * @author Arjen Poutsma
@@ -60,35 +59,28 @@ import android.util.Log;
  */
 public abstract class AbstractRestTemplateIntegrationTests extends AndroidTestCase {
 
-	private static final String TAG = getTag();
-
-	protected static String getTag() {
-		return AbstractRestTemplateIntegrationTests.class.getSimpleName();
-	}
-	
-	private RestTemplate restTemplate;
+	protected static final String TAG = AbstractRestTemplateIntegrationTests.class.getSimpleName();
 
 	private static Server jettyServer;
 
-	private static String helloWorld = "H\u00e9llo W\u00f6rld";
+	private static String helloWorld = "H\u00e9llo W\u00f6rld!!";
 
 	private static String baseUrl;
 
 	private static MediaType contentType;
 
+	private RestTemplate restTemplate;
+
+	protected abstract RestTemplate getRestTemplate();
+
 	@Override
 	protected void setUp() throws Exception {
 		super.setUp();
-		setUpJetty();
 		this.restTemplate = getRestTemplate();
+		setUpJetty();
 	}
 
-	@Override
-	protected void tearDown() throws Exception {
-		this.restTemplate = null;
-	}
-
-	private void setUpJetty() throws Exception {
+	private static void setUpJetty() throws Exception {
 		if (jettyServer == null) {
 			int port = 8181;
 			jettyServer = new Server(port);
@@ -114,20 +106,18 @@ public abstract class AbstractRestTemplateIntegrationTests extends AndroidTestCa
 		}
 	}
 
-	private void tearDownJetty() throws Exception {
-		if (jettyServer != null && jettyServer.isRunning()) {
-			jettyServer.stop();
-			while (jettyServer.isStopping()) {
-				Log.d(TAG, "Stopping Jetty...");
-			}
-			if (jettyServer.isStopped()) {
-				Log.d(TAG, "Jetty is stopped");
-				jettyServer = null;
-			}
-		}
+	@Override
+	protected void tearDown() throws Exception {
+		this.restTemplate = null;
 	}
 
-	protected abstract RestTemplate getRestTemplate();
+	@Override
+	protected void finalize() throws Throwable {
+		super.finalize();
+		if (jettyServer != null) {
+			jettyServer.stop();
+		}
+	}
 
 	@MediumTest
 	public void testGetString() {
@@ -311,6 +301,27 @@ public abstract class AbstractRestTemplateIntegrationTests extends AndroidTestCa
 		assertEquals("Invalid location", new URI(baseUrl + "/post/1"), result.getHeaders().getLocation());
 		assertFalse(result.hasBody());
 	}
+
+	// ANDROID-81
+	// ignoring since this test makes a request to an external address
+//	public void testMultipleHttpsRequests() throws Exception {
+//		HttpHeaders requestHeaders = new HttpHeaders();
+//		requestHeaders.setAcceptEncoding(ContentCodingType.GZIP);
+//		requestHeaders.set("Connection", "Close");
+//		requestHeaders.set("Cache-Control", "no-cache");
+//		requestHeaders.set("Pragma", "no-cache");
+//		HttpEntity<Void> requestEntity = new HttpEntity<Void>(requestHeaders);
+//		String url = "https://github.com/spring-guides/gs-consuming-rest-android";
+//		try {
+//			restTemplate.exchange(url, HttpMethod.GET, requestEntity, byte[].class);
+//		} catch (HttpClientErrorException e) {
+//			if (e.getStatusCode() != HttpStatus.NOT_FOUND) {
+//				throw e;
+//			}
+//		}
+//		url = "https://github.com/spring-guides/gs-consuming-rest-xml-android";
+//		restTemplate.exchange(url, HttpMethod.GET, requestEntity, byte[].class);
+//	}
 
 	/** Servlet that sets the given status code. */
 	private static class StatusCodeServlet extends GenericServlet {

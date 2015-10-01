@@ -16,7 +16,6 @@
 
 package org.springframework.http.client;
 
-import java.io.FilterOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
@@ -27,13 +26,12 @@ import java.util.Map;
 
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
-
-import android.os.Build;
+import org.springframework.util.StreamUtils;
 
 /**
- * {@link ClientHttpRequest} implementation that uses standard J2SE facilities to execute streaming requests. Created
- * via the {@link SimpleClientHttpRequestFactory}.
- * 
+ * {@link ClientHttpRequest} implementation that uses standard J2SE facilities to
+ * execute streaming requests. Created via the {@link SimpleClientHttpRequestFactory}.
+ *
  * @author Arjen Poutsma
  * @author Roy Clarkson
  * @since 1.0
@@ -41,24 +39,25 @@ import android.os.Build;
  */
 final class SimpleStreamingClientHttpRequest extends AbstractClientHttpRequest {
 
-	private static final Boolean olderThanFroyo = (Build.VERSION.SDK_INT < Build.VERSION_CODES.FROYO);
-
 	private final HttpURLConnection connection;
 
 	private final int chunkSize;
 
 	private OutputStream body;
 
+	private final boolean outputStreaming;
 
-	SimpleStreamingClientHttpRequest(HttpURLConnection connection, int chunkSize) {
+	private final boolean reuseConnection;
+
+
+	SimpleStreamingClientHttpRequest(HttpURLConnection connection, int chunkSize,
+									 boolean outputStreaming, boolean reuseConnection) {
 		this.connection = connection;
 		this.chunkSize = chunkSize;
-
-		// Bugs with reusing connections in Android versions older than Froyo (2.2)
-		if (olderThanFroyo) {
-			System.setProperty("http.keepAlive", "false");
-		}
+		this.outputStreaming = outputStreaming;
+		this.reuseConnection = reuseConnection;
 	}
+
 
 	public HttpMethod getMethod() {
 		return HttpMethod.valueOf(this.connection.getRequestMethod());
@@ -67,7 +66,8 @@ final class SimpleStreamingClientHttpRequest extends AbstractClientHttpRequest {
 	public URI getURI() {
 		try {
 			return this.connection.getURL().toURI();
-		} catch (URISyntaxException ex) {
+		}
+		catch (URISyntaxException ex) {
 			throw new IllegalStateException("Could not get HttpURLConnection URI: " + ex.getMessage(), ex);
 		}
 	}
@@ -75,17 +75,32 @@ final class SimpleStreamingClientHttpRequest extends AbstractClientHttpRequest {
 	@Override
 	protected OutputStream getBodyInternal(HttpHeaders headers) throws IOException {
 		if (this.body == null) {
-			int contentLength = (int) headers.getContentLength();
-			if (contentLength >= 0 && !olderThanFroyo) {
-				this.connection.setFixedLengthStreamingMode(contentLength);
-			} else {
-				this.connection.setChunkedStreamingMode(this.chunkSize);
+			if (this.outputStreaming) {
+				int contentLength = (int) headers.getContentLength();
+				if (contentLength >= 0) {
+					this.connection.setFixedLengthStreamingMode(contentLength);
+				}
+				else {
+					this.connection.setChunkedStreamingMode(this.chunkSize);
+				}
+			}
+			if (this.reuseConnection == false) {
+				headers.setConnection("close");
 			}
 			writeHeaders(headers);
 			this.connection.connect();
 			this.body = this.connection.getOutputStream();
 		}
-		return new NonClosingOutputStream(this.body);
+		return StreamUtils.nonClosing(this.body);
+	}
+
+	private void writeHeaders(HttpHeaders headers) {
+		for (Map.Entry<String, List<String>> entry : headers.entrySet()) {
+			String headerName = entry.getKey();
+			for (String headerValue : entry.getValue()) {
+				this.connection.addRequestProperty(headerName, headerValue);
+			}
+		}
 	}
 
 	@Override
@@ -93,44 +108,16 @@ final class SimpleStreamingClientHttpRequest extends AbstractClientHttpRequest {
 		try {
 			if (this.body != null) {
 				this.body.close();
-			} else {
+			}
+			else {
 				writeHeaders(headers);
 				this.connection.connect();
 			}
-		} catch (IOException ex) {
+		}
+		catch (IOException ex) {
 			// ignore
 		}
 		return new SimpleClientHttpResponse(this.connection);
-	}
-
-	private void writeHeaders(HttpHeaders headers) {
-		for (Map.Entry<String, List<String>> entry : headers.entrySet()) {
-			String headerName = entry.getKey();
-			for (String headerValue : entry.getValue()) {
-				if (shouldAllowConnectionReuse(headerName, headerValue)) {
-					this.connection.addRequestProperty(headerName, headerValue);
-				}
-			}
-		}
-	}
-
-	private boolean shouldAllowConnectionReuse(String headerName, String headerValue) {
-		// Bugs with reusing connections in Android versions older than Froyo (2.2)
-		if (olderThanFroyo && headerName.equals("Connection") && headerValue.equals("Keep-Alive")) {
-			return false;
-		}
-		return true;
-	}
-
-	private static class NonClosingOutputStream extends FilterOutputStream {
-
-		private NonClosingOutputStream(OutputStream out) {
-			super(out);
-		}
-
-		@Override
-		public void close() throws IOException {
-		}
 	}
 
 }

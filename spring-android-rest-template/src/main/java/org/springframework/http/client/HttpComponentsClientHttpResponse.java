@@ -21,66 +21,77 @@ import java.io.InputStream;
 
 import org.apache.http.Header;
 import org.apache.http.HttpEntity;
-import org.apache.http.HttpResponse;
+import org.apache.http.client.methods.CloseableHttpResponse;
+import org.apache.http.util.EntityUtilsHC4;
+
 import org.springframework.http.HttpHeaders;
 
 /**
- * {@link org.springframework.http.client.ClientHttpResponse} implementation that uses Apache HttpClient 4.0 to execute
- * requests.
- * 
- * <p>
- * Created via the {@link HttpComponentsClientHttpRequest}.
- * 
+ * {@link org.springframework.http.client.ClientHttpResponse} implementation that uses
+ * Apache HttpComponents Android HttpClient to execute requests.
+ *
+ * <p>Created via the {@link HttpComponentsClientHttpRequest}.
+ *
+ * <p><b>NOTE:</b> Requires Apache HttpComponents Android HttpClient 4.3 or higher.
+ *
  * @author Oleg Kalnichevski
- * @author Roy Clarkson
+ * @author Arjen Poutsma
  * @since 1.0
  * @see HttpComponentsClientHttpRequest#execute()
  */
 final class HttpComponentsClientHttpResponse extends AbstractClientHttpResponse {
 
-	private final HttpResponse httpResponse;
+	private final CloseableHttpResponse httpResponse;
 
 	private HttpHeaders headers;
 
-	HttpComponentsClientHttpResponse(HttpResponse httpResponse) {
+
+	HttpComponentsClientHttpResponse(CloseableHttpResponse httpResponse) {
 		this.httpResponse = httpResponse;
 	}
 
+
+	@Override
 	public int getRawStatusCode() throws IOException {
 		return this.httpResponse.getStatusLine().getStatusCode();
 	}
 
+	@Override
 	public String getStatusText() throws IOException {
 		return this.httpResponse.getStatusLine().getReasonPhrase();
 	}
 
+	@Override
 	public HttpHeaders getHeaders() {
 		if (this.headers == null) {
 			this.headers = new HttpHeaders();
 			for (Header header : this.httpResponse.getAllHeaders()) {
-				headers.add(header.getName(), header.getValue());
+				this.headers.add(header.getName(), header.getValue());
 			}
 		}
-		return headers;
+		return this.headers;
 	}
 
 	@Override
-	protected InputStream getBodyInternal() throws IOException {
+	public InputStream getBodyInternal() throws IOException {
 		HttpEntity entity = this.httpResponse.getEntity();
-		return entity != null ? entity.getContent() : null;
+		return (entity != null ? entity.getContent() : null);
 	}
 
 	@Override
-	protected void closeInternal() {
-		HttpEntity entity = this.httpResponse.getEntity();
-		if (entity != null) {
+	public void closeInternal() {
+		// Release underlying connection back to the connection manager
+		try {
 			try {
-				// This will cause the underlying connection
-				// to be released back to the connection manager
-				entity.consumeContent();
-			} catch (IOException ignore) {
-				// Connection will be released automatically
+				// Attempt to keep connection alive by consuming its remaining content
+				EntityUtilsHC4.consume(this.httpResponse.getEntity());
 			}
+			finally {
+				this.httpResponse.close();
+			}
+		}
+		catch (IOException ex) {
+			// Ignore exception on close...
 		}
 	}
 

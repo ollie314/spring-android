@@ -1,10 +1,11 @@
 buildscript {
 	repositories { 
-		maven { url "http://repo.spring.io/plugins-release" } 
+		maven { url "https://repo.spring.io/plugins-release" }
 	}
 	dependencies { 
-		classpath "org.springframework.build.gradle:docbook-reference-plugin:0.2.8" 
-		classpath "me.champeau.gradle:gradle-javadoc-hotfix-plugin:0.1"
+		classpath("org.springframework.build.gradle:propdeps-plugin:0.0.7")
+		classpath("io.spring.gradle:docbook-reference-plugin:0.3.0")
+		classpath("me.champeau.gradle:gradle-javadoc-hotfix-plugin:0.1")
 	}
 }
 
@@ -12,29 +13,26 @@ configure(allprojects) {
 	group = "org.springframework.android"
 
 	ext.androidVersion           = "4.1.1.4"
-	ext.springSocialVersion      = "1.0.2.RELEASE"
+	ext.springSocialVersion      = "1.1.0.RELEASE"
 	ext.springSecurityVersion    = "3.1.3.RELEASE"
-	ext.jacksonVersion           = "1.9.11"
-	ext.jackson2Version          = "2.1.2"
-	ext.gsonVersion              = "2.2.2"
-	ext.simpleXmlVersion         = "2.6.9"
-	ext.androidRomeVersion       = "1.0.0-r2"
-	ext.commonsHttpClientVersion = "3.1"
+	ext.jackson2Version          = "2.5.4"
+	ext.gsonVersion              = "2.3.1"
+	ext.simpleXmlVersion         = "2.7.1"
+	ext.okHttpVersion            = "2.4.0"
+	ext.httpclientVersion        = "4.3.5.1"
 	ext.gradleScriptDir          = "${rootProject.projectDir}/gradle"
 
+	apply plugin: 'propdeps'
+	apply plugin: 'propdeps-maven'
+	apply plugin: 'propdeps-eclipse'
+	apply plugin: 'propdeps-idea'
 	apply plugin: "java"
 	apply plugin: "eclipse"
 	apply plugin: "idea"
 	apply plugin: "javadocHotfix"
 
-	compileJava {
-		sourceCompatibility=1.5
-		targetCompatibility=1.5
-	}
-	compileTestJava {
-		sourceCompatibility=1.5
-		targetCompatibility=1.5
-	}
+	sourceCompatibility=1.6
+	targetCompatibility=1.6
 
 	[compileJava, compileTestJava]*.options*.compilerArgs = [
 		"-Xlint:serial",
@@ -52,15 +50,22 @@ configure(allprojects) {
 		"-Xlint:try",
 		"-Xlint:-options",     // intentionally disabled
 		"-Xlint:-fallthrough", // intentionally disabled
-		"-Xlint:rawtypes",
+		"-Xlint:-rawtypes",    // TODO enable and fix warnings
 		"-Xlint:deprecation",
 		"-Xlint:unchecked"
 	]
 
 	repositories {
-		maven { url "http://repo.spring.io/libs-release" }
-		maven { url "https://android-rome-feed-reader.googlecode.com/svn/maven2/releases" }
+		maven { url "https://repo.spring.io/libs-release" }
 	}
+
+	ext.javadocLinks = [
+		"http://docs.jboss.org/jbossas/javadoc/4.0.5/connector/",
+		"http://fasterxml.github.com/jackson-core/javadoc/2.3.0/",
+		"http://fasterxml.github.com/jackson-databind/javadoc/2.3.0/",
+		"http://google-gson.googlecode.com/svn/trunk/gson/docs/javadocs/",
+		"http://hc.apache.org/httpcomponents-client-ga/httpclient/apidocs/"
+	] as String[]
 
 	// servlet-api (2.5) and tomcat-servlet-api (3.0) classpath entries should not be
 	// exported to dependent projects in Eclipse to avoid false compilation errors due
@@ -69,10 +74,6 @@ configure(allprojects) {
 		classpath.entries.findAll { entry -> entry.path.contains("servlet-api") }*.exported = false
 	}
 }
-
-ext.javadocLinks = [
-	"http://docs.jboss.org/jbossas/javadoc/4.0.5/connector",
-] as String[]
 
 configure(subprojects) { subproject ->
 	apply from: "${gradleScriptDir}/publish-maven.gradle"
@@ -97,6 +98,10 @@ configure(subprojects) { subproject ->
 		options.memberLevel = org.gradle.external.javadoc.JavadocMemberLevel.PROTECTED
 		options.author = true
 		options.header = project.name
+		options.links(project.ext.javadocLinks)
+		if (JavaVersion.current().isJava8Compatible()) {
+			options.addStringOption('Xdoclint:none', '-quiet')
+		}
 	}
 
 	task sourcesJar(type: Jar, dependsOn:classes) {
@@ -121,7 +126,7 @@ project("spring-android-core") {
 	ext.mavenTestDir = "../test/spring-android-core-test/pom.xml"
 	
 	dependencies {
-		compile("com.google.android:android:$androidVersion", provided)
+		provided("com.google.android:android:$androidVersion")
 	}
 }
 
@@ -131,7 +136,7 @@ project("spring-android-auth") {
 	ext.mavenTestDir = "../test/spring-android-auth-test/pom.xml"
 	
 	dependencies {
-		compile("com.google.android:android:$androidVersion", provided)
+		provided("com.google.android:android:$androidVersion")
 		compile(project(":spring-android-core"))
 		compile(project(":spring-android-rest-template"))
 		compile("org.springframework.social:spring-social-core:$springSocialVersion") {
@@ -146,22 +151,17 @@ project("spring-android-auth") {
 
 project("spring-android-rest-template") {
 	description = "Spring for Android Rest Template"
-	
+
 	ext.mavenTestDir = "../test/spring-android-rest-template-test/pom.xml"
-	
+
 	dependencies {
-		compile("com.google.android:android:$androidVersion", provided)
+		provided("com.google.android:android:$androidVersion")
 		compile(project(":spring-android-core"))
-		compile("org.codehaus.jackson:jackson-mapper-asl:$jacksonVersion", optional)
-		compile("com.fasterxml.jackson.core:jackson-databind:$jackson2Version", optional)
-		compile("com.google.code.gson:gson:$gsonVersion", optional)
-		compile("org.simpleframework:simple-xml:$simpleXmlVersion") { dep ->
-			optional dep
-			transitive = false
-		}
-		compile("com.google.code.android-rome-feed-reader:android-rome-feed-reader:$androidRomeVersion", optional)
-		compile("commons-httpclient:commons-httpclient:$commonsHttpClientVersion") { dep ->
-			optional dep
+		optional("org.apache.httpcomponents:httpclient-android:$httpclientVersion")
+		optional("com.squareup.okhttp:okhttp-urlconnection:$okHttpVersion")
+		optional("com.fasterxml.jackson.core:jackson-databind:$jackson2Version")
+		optional("com.google.code.gson:gson:$gsonVersion")
+		optional("org.simpleframework:simple-xml:$simpleXmlVersion") { dep ->
 			transitive = false
 		}
 	}
@@ -195,28 +195,25 @@ configure(rootProject) {
 		group = "Documentation"
 		description = "Generates aggregated Javadoc API documentation."
 		title = "${rootProject.description} ${version} API"
-
-		dependsOn {
-			subprojects.collect {
-				it.tasks.getByName("jar")
-			}
-		}
 		options.memberLevel = org.gradle.external.javadoc.JavadocMemberLevel.PROTECTED
 		options.author = true
 		options.header = rootProject.description
 		options.overview = "src/api/overview.html"
 		options.links(project.ext.javadocLinks)
+		if (JavaVersion.current().isJava8Compatible()) {
+			options.addStringOption('Xdoclint:none', '-quiet')
+		}
 
 		source subprojects.collect { project ->
 			project.sourceSets.main.allJava
 		}
 
+		classpath = files(subprojects.collect { project ->
+			project.sourceSets.main.compileClasspath
+		})
+
 		maxMemory = "1024m"
 		destinationDir = new File(buildDir, "api")
-
-		doFirst {
-			classpath = files(subprojects.collect { it.sourceSets.main.compileClasspath })
-		}
 	}
 
 	task docsZip(type: Zip) {
@@ -277,7 +274,7 @@ configure(rootProject) {
 	}
 
 	task wrapper(type: Wrapper) {
-		gradleVersion = "1.11"
+		gradleVersion = "1.12"
 	}
 }
 

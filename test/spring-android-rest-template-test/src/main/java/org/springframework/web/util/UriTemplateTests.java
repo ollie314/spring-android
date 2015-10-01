@@ -49,14 +49,12 @@ public class UriTemplateTests extends TestCase {
 
 	@SmallTest
 	public void testExpandVarArgsNotEnoughVariables() throws Exception {
-		boolean success = false;
 		try {
 			UriTemplate template = new UriTemplate("http://example.com/hotels/{hotel}/bookings/{booking}");
 			template.expand("1");
+			fail("Expected IllegalArgumentException");
 		} catch (IllegalArgumentException e) {
-			success = true;
 		}
-		assertTrue("expected IllegalArgumentException", success);
 	}
 
 	@SmallTest
@@ -94,20 +92,18 @@ public class UriTemplateTests extends TestCase {
 		URI result = template.expand(uriVariables);
 		assertEquals("Invalid expanded template", new URI("http://example.com/hotel%20list/Z%C3%BCrich"), result);
 	}
-	
+
 	@SmallTest
-	public void expandMapUnboundVariables() throws Exception {
-		boolean success = false;
+	public void testExpandMapUnboundVariables() throws Exception {
 		try {
 			Map<String, String> uriVariables = new HashMap<String, String>(2);
 			uriVariables.put("booking", "42");
 			uriVariables.put("bar", "1");
 			UriTemplate template = new UriTemplate("http://example.com/hotels/{hotel}/bookings/{booking}");
 			template.expand(uriVariables);
+			fail("Expected IllegalArgumentException");
 		} catch (IllegalArgumentException e) {
-			success = true;
 		}
-		assertTrue("expected IllegalArgumentException", success);
 	}
 
 	@SmallTest

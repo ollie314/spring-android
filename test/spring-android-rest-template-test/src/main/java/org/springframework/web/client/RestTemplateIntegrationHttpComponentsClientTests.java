@@ -22,10 +22,10 @@ import org.springframework.http.client.HttpComponentsClientHttpRequestFactory;
  * @author Roy Clarkson
  */
 public class RestTemplateIntegrationHttpComponentsClientTests extends AbstractRestTemplateIntegrationTests {
-	
+
 	@Override
 	protected RestTemplate getRestTemplate() {
-		return new RestTemplate(true, new HttpComponentsClientHttpRequestFactory());
+		return new RestTemplate(new HttpComponentsClientHttpRequestFactory());
 	}
 
 }

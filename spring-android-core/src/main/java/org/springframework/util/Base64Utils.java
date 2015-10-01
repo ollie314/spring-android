@@ -16,92 +16,124 @@
 
 package org.springframework.util;
 
-import java.io.IOException;
+import java.io.UnsupportedEncodingException;
+import java.nio.charset.Charset;
 
-import android.os.Build;
+import android.util.Base64;
 
 /**
- * Utility class for Base64 encoding. Froyo and newer versions of Android include 
- * Base64 support. If the environment is determined to be Froyo or later, then this 
- * class delegates to {@link android.util.Base64}. If the version is older than
- * Froyo, then Robert Harder's public domain Base64 class is used.
- * @see org.springframework.util.support.Base64
+ * A simple utility class for Base64 encoding and decoding that delegates to Android's
+ * {@link android.util.Base64} class.
+ *
+ * @author Juergen Hoeller
  * @author Roy Clarkson
  * @since 1.0
  */
-public class Base64Utils {
+public abstract class Base64Utils {
 
-	private static final Boolean froyoOrNewer = (Build.VERSION.SDK_INT >= Build.VERSION_CODES.FROYO);
+	private static final Charset DEFAULT_CHARSET = Charset.forName("UTF-8");
+
+	private static final Base64Delegate delegate = new AndroidBase64Delegate();
+
 
 	/**
-	 * Base64 encodes the input. If the version of Android is Froyo or newer, 
-	 * then this method delegates to {@link android.util.Base64#encode(byte[], int)}.
-	 * Otherwise {@link org.springframework.util.support.Base64#encodeBytesToBytes(byte[])}
-	 * is used.
-	 * @param input the byte array to encode
-	 * @return encoded byte array
+	 * Base64-encode the given byte array.
+	 * @param src the original byte array (may be {@code null})
+	 * @return the encoded byte array (or {@code null} if the input was {@code null})
 	 */
-	public static byte[] encode(byte[] input) {
-		if (froyoOrNewer) {
-			return android.util.Base64.encode(input, android.util.Base64.DEFAULT | android.util.Base64.NO_WRAP);
-		} else {
-			return org.springframework.util.support.Base64.encodeBytesToBytes(input);
-		}
+	public static byte[] encode(byte[] src) {
+		return delegate.encode(src);
 	}
 
 	/**
-	 * Base64 encodes the input. If the version of Android is Froyo or newer, 
-	 * then this method delegates to {@link android.util.Base64#encodeToString(byte[], int)}.
-	 * Otherwise {@link org.springframework.util.support.Base64#encodeBytes(byte[])}
-	 * is used.
-	 * @param input the byte array to encode
-	 * @return encoded String
+	 * Base64-encode the given byte array to a String.
+	 * @param src the original byte array (may be {@code null})
+	 * @return the encoded byte array as a UTF-8 String
+	 * (or {@code null} if the input was {@code null})
 	 */
-	public static String encodeToString(byte[] input) {
-		if (froyoOrNewer) {
-			return android.util.Base64.encodeToString(input, android.util.Base64.DEFAULT | android.util.Base64.NO_WRAP);
-		} else {
-			return org.springframework.util.support.Base64.encodeBytes(input);
+	public static String encodeToString(byte[] src) {
+		if (src == null) {
+			return null;
 		}
+		if (src.length == 0) {
+			return "";
+		}
+		String result;
+		try {
+			result = new String(delegate.encode(src), DEFAULT_CHARSET.displayName());
+		} catch (UnsupportedEncodingException e) {
+			// should not happen, UTF-8 is always supported
+			throw new IllegalStateException(e);
+		}
+		return result;
 	}
 
 	/**
-	 * Base64 decodes the input. If the version of Android is Froyo or newer, 
-	 * then this method delegates to {@link android.util.Base64#decode(byte[], int)}.
-	 * Otherwise {@link org.springframework.util.support.Base64#decode(byte[])}
-	 * is used.
-	 * @param input the byte array to decode
-	 * @return decoded byte array
+	 * Base64-decode the given byte array.
+	 * @param src the encoded byte array (may be {@code null})
+	 * @return the original byte array (or {@code null} if the input was {@code null})
 	 */
-	public static byte[] decode(byte[] input) {
-		if (froyoOrNewer) {
-			return android.util.Base64.decode(input, android.util.Base64.DEFAULT | android.util.Base64.NO_WRAP);
-		} else {
-			try {
-				return org.springframework.util.support.Base64.decode(input);
-			} catch (IOException e) {
-				throw new IllegalArgumentException(e.getLocalizedMessage());
+	public static byte[] decode(byte[] src) {
+		return delegate.decode(src);
+	}
+
+	/**
+	 * Base64-decode the given byte array from an UTF-8 String.
+	 * @param src the encoded UTF-8 String (may be {@code null})
+	 * @return the original byte array (or {@code null} if the input was {@code null})
+	 * @deprecated in favor of {@link #decodeFromString(String)}
+	 */
+	@Deprecated
+	public static byte[] decode(String src) {
+		return decodeFromString(src);
+	}
+
+	/**
+	 * Base64-decode the given byte array from an UTF-8 String.
+	 * @param src the encoded UTF-8 String (may be {@code null})
+	 * @return the original byte array (or {@code null} if the input was {@code null})
+	 * @since 2.0
+	 */
+	public static byte[] decodeFromString(String src) {
+		if (src == null) {
+			return null;
+		}
+		if (src.length() == 0) {
+			return new byte[0];
+		}
+		byte[] result;
+		try {
+			result = delegate.decode(src.getBytes(DEFAULT_CHARSET.displayName()));
+		} catch (UnsupportedEncodingException e) {
+			// should not happen, UTF-8 is always supported
+			throw new IllegalStateException(e);
+		}
+		return result;
+	}
+
+
+	private interface Base64Delegate {
+
+		byte[] encode(byte[] src);
+
+		byte[] decode(byte[] src);
+	}
+
+
+	private static class AndroidBase64Delegate implements Base64Delegate {
+
+		public byte[] encode(byte[] src) {
+			if (src == null || src.length == 0) {
+				return src;
 			}
+			return Base64.encode(src, Base64.DEFAULT | Base64.NO_WRAP);
 		}
-	}
 
-	/**
-	 * Base64 decodes the input. If the version of Android is Froyo or newer, 
-	 * then this method delegates to {@link android.util.Base64#decode(String, int)}.
-	 * Otherwise {@link org.springframework.util.support.Base64#decode(String)}
-	 * is used.
-	 * @param str the String the decode
-	 * @return decoded byte array
-	 */
-	public static byte[] decode(String str) {
-		if (froyoOrNewer) {
-			return android.util.Base64.decode(str, android.util.Base64.DEFAULT | android.util.Base64.NO_WRAP);
-		} else {
-			try {
-				return org.springframework.util.support.Base64.decode(str);
-			} catch (IOException e) {
-				throw new IllegalArgumentException(e.getLocalizedMessage());
+		public byte[] decode(byte[] src) {
+			if (src == null || src.length == 0) {
+				return src;
 			}
+			return Base64.decode(src, Base64.DEFAULT | Base64.NO_WRAP);
 		}
 	}
 
